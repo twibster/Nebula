@@ -1,8 +1,8 @@
-import os, uuid
+import uuid
 from midiutil import MIDIFile
 from fastapi import FastAPI, File, UploadFile, HTTPException, status
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+import openai
 
 from api.utils.sonify import (process_frame,
                               sonify_image,
@@ -12,9 +12,12 @@ from api.utils.sonify import (process_frame,
                               apply_gamma_correction,
                               sonify_pixel, TEMPO
                               ,check_tuning_file)
+from api.utils.decompose import decompose_img
 
 
 app = FastAPI()
+
+openai.api_key = "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"
 
 utils_dir = "./api/utils/"
 
@@ -85,6 +88,25 @@ async def get_color_tone(hex: str):
     convert_midi_to_mp3(utils_dir+ f"{midi_filename}.mid", utils_dir+ "sound-font.sf2", utils_dir+ f"{midi_filename}.mp3")
     
     return FileResponse(utils_dir+ f"{midi_filename}.mp3")
-    
-# @app.post("/video")
-# async def 
+
+@app.post("/decompose")
+async def decompose(image: UploadFile = File(...)):
+    with open(utils_dir + image.filename, "wb") as f:
+        media_contents = await image.read()
+        f.write(media_contents)
+        
+    return decompose_img()
+
+def chat_with_chatgpt(prompt, model="gpt-3.5-turbo"):
+    response = openai.ChatCompletion.create(
+        model=model,
+        messages=[{"content": prompt, "role": "user"}],
+        temperature=0,
+    )
+
+    message = response['choices'][0]['message']['content']
+    return message
+
+@app.get("/chatgpt")
+def get_chatgpt(propmt: str):
+    return chat_with_chatgpt(propmt)
