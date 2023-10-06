@@ -19,10 +19,14 @@ app = FastAPI()
 utils_dir = "./api/utils/"
 
 @app.post("/sonify")
-async def sonfiy(image: UploadFile = File(...), melody: UploadFile = File(None)):
-    if image.content_type not in ["image/jpeg", "image/png", "image/jpg", "image/gif", "image/bmp", "image/webp"]:
-        raise HTTPException(status.HTTP_409_CONFLICT, "image must be of jpeg, png, jpg, gif, bmp or webp type")
-    
+async def sonfiy(media: UploadFile = File(...), melody: UploadFile = File(None)):
+    video = True
+    if media.content_type in ["image/jpeg", "image/png", "image/jpg", "image/gif", "image/bmp", "image/webp"]:
+        video = False
+    elif media.content_type in ["video/mp4"]:
+        video = True
+    else:        
+        raise HTTPException(status.HTTP_409_CONFLICT, "image must be of jpeg, png, jpg, gif, bmp or webp type\n or video of mp4")
     
     if melody:
         if melody.content_type not in ["audio/mid"]:
@@ -32,14 +36,13 @@ async def sonfiy(image: UploadFile = File(...), melody: UploadFile = File(None))
             f.write(melody_contents)
     
     general_name = f"{uuid.uuid4()}"
-    image.filename = f"{general_name}.jpg"
+    media.filename = general_name + "." + media.filename.split(".")[1]
     
-    with open(utils_dir + image.filename, "wb") as f:
-        image_contents = await image.read()
-        f.write(image_contents)
-
+    with open(utils_dir + media.filename, "wb") as f:
+        media_contents = await media.read()
+        f.write(media_contents)
     
-    down_scaled_image = process_frame(utils_dir+image.filename)
+    down_scaled_image = process_frame(utils_dir+media.filename)
     MIN_VOLUME, MAX_VOLUME, note_midis = check_tuning_file(utils_dir + melody.filename if melody else "") 
     print(MIN_VOLUME, MAX_VOLUME, note_midis)       
     midi_file = sonify_image(down_scaled_image, MIN_VOLUME, MAX_VOLUME, note_midis)
@@ -50,7 +53,9 @@ async def sonfiy(image: UploadFile = File(...), melody: UploadFile = File(None))
 
         
 @app.post("/color_tone")
-async def get_color_tone(rgb: tuple[int, int, int]):
+async def get_color_tone(hex: str):
+    hex = hex.lstrip("#")
+    rgb = tuple(int(hex[i:i+2], 16) for i in (0, 2, 4))
     
     # if melody:
     #     if melody.content_type not in ["audio/mid"]:
@@ -81,3 +86,5 @@ async def get_color_tone(rgb: tuple[int, int, int]):
     
     return FileResponse(utils_dir+ f"{midi_filename}.mp3")
     
+# @app.post("/video")
+# async def 
